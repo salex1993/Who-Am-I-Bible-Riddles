@@ -96,6 +96,49 @@ export const getUniqueCategories = (): string[] => {
   return Array.from(categories).sort();
 };
 
+// Simple seeded PRNG for Daily Mode
+const seededRandom = (seed: number) => {
+  const m = 0x80000000;
+  const a = 1103515245;
+  const c = 12345;
+  let state = seed ? seed : Math.floor(Math.random() * (m - 1));
+  return () => {
+    state = (a * state + c) % m;
+    return state / (m - 1);
+  };
+};
+
+// String hash for date
+const hashCode = (str: string) => {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    const char = str.charCodeAt(i);
+    hash = (hash << 5) - hash + char;
+    hash = hash & hash;
+  }
+  return Math.abs(hash);
+};
+
+export const getDailyRiddles = async (dateString: string): Promise<RiddleData[]> => {
+    await new Promise(resolve => setTimeout(resolve, 600)); // Simulate loading
+    const seed = hashCode(dateString);
+    const rng = seededRandom(seed);
+    
+    const count = 3;
+    const selected: LocalRiddle[] = [];
+    const pool = [...riddles]; // Clone to modify
+
+    for(let i=0; i<count; i++) {
+        if (pool.length === 0) break;
+        const idx = Math.floor(rng() * pool.length);
+        selected.push(pool[idx]);
+        pool.splice(idx, 1); // Remove to avoid duplicates
+    }
+
+    return selected.map(r => mapLocalToRiddleData(r, GameDifficulty.MEDIUM));
+};
+
+
 export const getRiddle = async (difficultyPreference?: GameDifficulty, category?: string): Promise<RiddleData> => {
   // Simulate network delay for "Consulting the Scribes..." effect
   await new Promise(resolve => setTimeout(resolve, 600));

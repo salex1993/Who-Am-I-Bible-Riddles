@@ -41,24 +41,37 @@ class AudioController {
     this.init();
     if (!this.ctx) return;
 
-    // Create a short, high-pitched "tick" or "pop"
-    const osc = this.ctx.createOscillator();
-    const gain = this.ctx.createGain();
+    // Create a buffer for white noise (wind source)
+    const bufferSize = this.ctx.sampleRate * 0.5; // 0.5 seconds
+    const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) {
+        data[i] = Math.random() * 2 - 1;
+    }
 
-    osc.connect(gain);
+    const noise = this.ctx.createBufferSource();
+    noise.buffer = buffer;
+
+    // Lowpass filter to soften the noise into "wind"
+    const filter = this.ctx.createBiquadFilter();
+    filter.type = 'lowpass';
+    // Sweep frequency up slightly then down to simulate a breath/whoosh
+    filter.frequency.setValueAtTime(200, this.ctx.currentTime);
+    filter.frequency.linearRampToValueAtTime(600, this.ctx.currentTime + 0.1);
+    filter.frequency.linearRampToValueAtTime(100, this.ctx.currentTime + 0.3);
+
+    const gain = this.ctx.createGain();
+    // Soft attack and release
+    gain.gain.setValueAtTime(0, this.ctx.currentTime);
+    gain.gain.linearRampToValueAtTime(0.4, this.ctx.currentTime + 0.05);
+    gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.3);
+
+    noise.connect(filter);
+    filter.connect(gain);
     gain.connect(this.ctx.destination);
 
-    osc.type = 'sine';
-    // Swift frequency ramp for a "glassy" tap
-    osc.frequency.setValueAtTime(1200, this.ctx.currentTime);
-    osc.frequency.exponentialRampToValueAtTime(600, this.ctx.currentTime + 0.05);
-
-    // Short envelope
-    gain.gain.setValueAtTime(0.05, this.ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.05);
-
-    osc.start();
-    osc.stop(this.ctx.currentTime + 0.05);
+    noise.start();
+    noise.stop(this.ctx.currentTime + 0.4);
   }
 
   public playHover() {

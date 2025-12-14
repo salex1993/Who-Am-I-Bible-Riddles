@@ -11,7 +11,9 @@ export interface RiddleData {
 
 export enum GameMode {
   SINGLE = 'SINGLE',
-  PARTY = 'PARTY'
+  PARTY = 'PARTY',
+  DAILY = 'DAILY',
+  SUDDEN_DEATH = 'SUDDEN_DEATH'
 }
 
 export enum GameDifficulty {
@@ -23,7 +25,7 @@ export enum GameDifficulty {
 
 export enum GameState {
   START_SCREEN,
-  SETUP_MODE,       // Select Single or Party
+  SETUP_MODE,       // Select Single, Party, Daily, Sword Drill
   SETUP_PARTY,      // Configure Teams/Players/Series
   SETUP_DIFFICULTY, // Select Difficulty
   SETUP_CATEGORY,   // New: Select Specific Category
@@ -32,7 +34,20 @@ export enum GameState {
   PLAYING,
   RESULT,           // Feedback state (brief)
   GAME_SUMMARY,     // End of game round (60s up)
-  ERROR
+  ERROR,
+  PROFILE,          // View stats/achievements
+  WISDOM_TREE,      // New: View category mastery
+  ASCENSION_PROMPT  // Progressive difficulty offer
+}
+
+export type AvatarId = 'crown' | 'flame' | 'shield' | 'sword' | 'sun' | 'heart' | 'book' | 'cloud' | 'anchor' | 'globe';
+
+export interface LeaderboardEntry {
+  name: string;
+  score: number;
+  avatar: AvatarId;
+  difficulty: string;
+  date: number;
 }
 
 export interface GameSession {
@@ -42,6 +57,31 @@ export interface GameSession {
   mode?: GameMode;
   difficulty?: GameDifficulty;
   category?: string; // New: Selected category override
+  avatar: AvatarId;
+  // Daily Mode Specifics
+  dailyIndex?: number;
+  dailyTotal?: number;
+  // Wisdom Tree Tracking
+  categoryScores?: Record<string, number>;
+}
+
+export interface Achievement {
+  id: string;
+  title: string;
+  description: string;
+  icon: string; // Icon identifier
+  xpReward: number;
+}
+
+export interface PlayerProfile {
+  totalXP: number;
+  rank: string;
+  dailyStreak: number;
+  lastDailyDate: string; // ISO Date YYYY-MM-DD
+  achievements: Record<string, number>; // id -> timestamp unlocked
+  gamesPlayed: number;
+  bestStreak: number;
+  categoryProgress: Record<string, number>; // Category Name -> Total XP
 }
 
 // --- Party Mode Types ---
@@ -60,6 +100,7 @@ export interface Team {
   players: Player[];
   score: number;
   color: string; // Tailwind color class suffix (e.g., 'red-500')
+  avatar: AvatarId;
 }
 
 export interface PartyConfig {
@@ -74,6 +115,7 @@ export interface Turn {
   playerName: string;
   teamName: string;
   teamColor: string;
+  teamAvatar: AvatarId;
   round: number;
 }
 

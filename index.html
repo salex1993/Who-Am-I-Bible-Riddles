@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Who Am I? - Anointed Bible Riddles</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700;900&family=Lato:wght@300;400;700;900&family=Crimson+Pro:ital,wght@0,400;0,600;0,700;1,400;1,600&display=swap" rel="stylesheet">
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            fontFamily: {
+              serif: ['Cinzel', 'serif'],
+              sans: ['Lato', 'sans-serif'],
+              riddle: ['Crimson Pro', 'serif'],
+            },
+            colors: {
+              gold: {
+                50: '#FFFEF0',
+                100: '#FFF9C4',
+                200: '#FFF59D',
+                300: '#FFF176',
+                400: '#FFEE58',
+                500: '#FFD700', // Primary Gold
+                600: '#FDB813',
+                700: '#F57F17',
+                800: '#EF6C00',
+                900: '#E65100',
+                950: '#4A3000',
+              },
+              royal: {
+                700: '#2A2A4A',
+                800: '#1a1a2e',
+                900: '#0f0f1a',
+                950: '#05050a',
+              },
+              cyan: {
+                950: '#083344',
+              }
+            },
+            animation: {
+              'fade-in': 'fadeIn 0.6s cubic-bezier(0.16, 1, 0.3, 1)',
+              'slide-up': 'slideUp 0.6s cubic-bezier(0.16, 1, 0.3, 1)',
+              'float': 'float 8s ease-in-out infinite',
+              'pulse-slow': 'pulse 6s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+              'spin-slow': 'spin 15s linear infinite',
+              'spin-reverse': 'spinReverse 20s linear infinite',
+              'shimmer': 'shimmer 2.5s linear infinite',
+              'glow': 'glow 3s ease-in-out infinite alternate',
+              'scale-in': 'scaleIn 0.4s cubic-bezier(0.16, 1, 0.3, 1)',
+              'text-shimmer': 'textShimmer 3s ease-in-out infinite alternate',
+            },
+            keyframes: {
+              fadeIn: {
+                '0%': { opacity: '0', filter: 'blur(10px)' },
+                '100%': { opacity: '1', filter: 'blur(0)' },
+              },
+              slideUp: {
+                '0%': { transform: 'translateY(30px)', opacity: '0' },
+                '100%': { transform: 'translateY(0)', opacity: '1' },
+              },
+              scaleIn: {
+                 '0%': { transform: 'scale(0.9)', opacity: '0' },
+                 '100%': { transform: 'scale(1)', opacity: '1' },
+              },
+              float: {
+                '0%, 100%': { transform: 'translateY(0)' },
+                '50%': { transform: 'translateY(-15px)' },
+              },
+              spinReverse: {
+                'from': { transform: 'rotate(360deg)' },
+                'to': { transform: 'rotate(0deg)' },
+              },
+              shimmer: {
+                'from': { backgroundPosition: '200% 0' },
+                'to': { backgroundPosition: '-200% 0' },
+              },
+              glow: {
+                'from': { boxShadow: '0 0 10px -5px #FFD700' },
+                'to': { boxShadow: '0 0 25px 5px rgba(255, 215, 0, 0.3)' },
+              },
+              textShimmer: {
+                '0%': { backgroundPosition: '0% 50%' },
+                '100%': { backgroundPosition: '100% 50%' },
+              }
+            }
+          },
+        },
+      }
+    </script>
+    <style>
+        body {
+            background-color: #05050a;
+            color: #f3f4f6;
+            overflow-x: hidden;
+        }
+        .glass-panel {
+            background: rgba(15, 15, 26, 0.6);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 215, 0, 0.15);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+        }
+        .glass-panel-kids {
+            background: rgba(8, 51, 68, 0.6);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(34, 211, 238, 0.2);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+        }
+        .text-glow {
+            text-shadow: 0 0 20px rgba(255, 215, 0, 0.3);
+        }
+        .text-glow-cyan {
+            text-shadow: 0 0 20px rgba(34, 211, 238, 0.4);
+        }
+        /* Gradient Text Animation Support */
+        .animate-gradient-text {
+            background-size: 200% auto;
+            animation: textShimmer 4s linear infinite;
+        }
+    </style>
+  <script type="importmap">
+{
+  "imports": {
+    "lucide-react": "https://esm.sh/lucide-react@^0.561.0",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
+    "@google/genai": "https://esm.sh/@google/genai@^1.33.0",
+    "react/": "https://esm.sh/react@^19.2.3/",
+    "react": "https://esm.sh/react@^19.2.3"
+  }
+}
+</script>
+</head>
+  <body>
+    <div id="root"></div>
+  </body>
+</html>

@@ -3,10 +3,59 @@ import { getRiddle, getUniqueCategories } from './services/gemini';
 import { RiddleData, GameState, GameSession, GameMode, GameDifficulty, Team, PartyConfig, Turn, SeriesLength, PartyFlow } from './types';
 import { Logo } from './components/Logo';
 import { Button } from './components/Button';
-import { Scroll, Sparkles, AlertCircle, Trophy, ChevronRight, Crown, Users, User, Star, Shield, Flame, ArrowLeft, Volume2, VolumeX, Clock, Hourglass, SkipForward, Lightbulb, Book, Sun, Smile, Gamepad2, Map, Quote, Plus, Trash2, Info, X, Play, BookOpen, Sword, Cloud, Skull, Heart, Globe, FlameKindling, Share2 } from 'lucide-react';
+import { Scroll, Sparkles, AlertCircle, Trophy, ChevronRight, Crown, Users, User, Star, Shield, Flame, ArrowLeft, Volume2, VolumeX, Clock, Hourglass, SkipForward, Lightbulb, Book, Sun, Smile, Gamepad2, Map, Quote, Plus, Trash2, Info, X, Play, BookOpen, Sword, Cloud, Skull, Heart, Globe, FlameKindling, Share2, Percent } from 'lucide-react';
 import { audio } from './services/audio';
 
 // --- VISUAL COMPONENTS ---
+
+const Confetti = () => {
+  const [particles, setParticles] = useState<Array<{id: number, x: number, y: number, color: string, speed: number, angle: number, spin: number}>>([]);
+
+  useEffect(() => {
+    const colors = ['#FFD700', '#FDB813', '#4ADE80', '#60A5FA', '#F472B6', '#FFFFFF'];
+    const count = 50;
+    const newParticles = Array.from({ length: count }).map((_, i) => ({
+      id: i,
+      x: 50, // Start center-ish
+      y: 50,
+      color: colors[Math.floor(Math.random() * colors.length)],
+      speed: Math.random() * 15 + 10,
+      angle: Math.random() * 360,
+      spin: Math.random() * 10
+    }));
+    setParticles(newParticles);
+  }, []);
+
+  return (
+    <div className="fixed inset-0 pointer-events-none z-50 overflow-hidden">
+      {particles.map((p) => (
+        <div
+          key={p.id}
+          className="absolute w-3 h-3 rounded-sm"
+          style={{
+            backgroundColor: p.color,
+            left: '50%',
+            top: '50%',
+            transform: `translate(calc(-50% + ${Math.cos(p.angle * Math.PI / 180) * 40}vw), calc(-50% + ${Math.sin(p.angle * Math.PI / 180) * 40}vh)) rotate(${p.spin * 360}deg)`,
+            transition: `all 1.5s cubic-bezier(0.1, 0.8, 0.2, 1)`,
+            opacity: 0
+          }}
+          ref={(el) => {
+             if (el) {
+                // Trigger animation after mount
+                requestAnimationFrame(() => {
+                    el.style.transform = `translate(${Math.cos(p.angle * Math.PI / 180) * (Math.random() * 500 + 100)}px, ${Math.sin(p.angle * Math.PI / 180) * (Math.random() * 500 + 100)}px) rotate(${Math.random() * 720}deg)`;
+                    el.style.opacity = '1';
+                    // Fade out
+                    setTimeout(() => { el.style.opacity = '0'; el.style.top = '100%' }, 1000 + Math.random() * 500);
+                });
+             }
+          }}
+        />
+      ))}
+    </div>
+  );
+};
 
 const ParticleBackground = ({ mode }: { mode: 'normal' | 'kids' }) => {
   const isKids = mode === 'kids';
@@ -146,6 +195,7 @@ const RulesModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => void 
               <li>Easy: 100pts | Medium: 200pts | Hard: 300pts</li>
               <li>Streaks apply multipliers to your score.</li>
               <li>Hints cost 5 points each.</li>
+              <li><strong>Divine Clarity (50/50):</strong> Costs 10 points to remove 2 wrong answers.</li>
             </ul>
           </section>
         </div>
@@ -171,6 +221,7 @@ export default function App() {
   const [hintLevel, setHintLevel] = useState<number>(0);
   const [showRules, setShowRules] = useState(false);
   const [copyFeedback, setCopyFeedback] = useState(false);
+  const [disabledOptions, setDisabledOptions] = useState<string[]>([]); // New: For 50/50 lifeline
 
   // -- Party Mode State --
   const [partyConfig, setPartyConfig] = useState<PartyConfig>({
@@ -409,6 +460,7 @@ export default function App() {
     setGameState(GameState.LOADING);
     setErrorMsg(null);
     setHintLevel(0); 
+    setDisabledOptions([]); // Reset lifeline
     
     const effectiveStreak = streakOverride !== undefined ? streakOverride : session.streak;
 
@@ -455,7 +507,7 @@ export default function App() {
          localStorage.setItem('anointed_highscore', newHigh.toString());
       }
       
-      const delay = isKidsMode ? 1500 : 1000;
+      const delay = isKidsMode ? 1500 : 2500; // Increased delay to read explanation
       setTimeout(() => {
         if (isPartyMode) handlePartyNextTurn();
         else handleNext(newStreak);
@@ -465,7 +517,7 @@ export default function App() {
        audio.playError(); 
        if (!isPartyMode) setSession(prev => ({ ...prev, streak: 0 }));
        
-       const delay = isKidsMode ? 2000 : 1000;
+       const delay = isKidsMode ? 2000 : 2500; // Increased delay to read explanation
        setTimeout(() => {
          if (isPartyMode) handlePartyNextTurn();
          else handleNext(0);
@@ -503,6 +555,39 @@ export default function App() {
     audio.playClick();
     if (!isPartyMode) setSession(prev => ({ ...prev, score: Math.max(0, prev.score - 5) }));
     setHintLevel(prev => prev + 1);
+  };
+
+  // New: 50/50 Lifeline
+  const handleFiftyFifty = () => {
+     if (selectedOption || disabledOptions.length > 0 || !currentRiddle) return;
+     if (!isPartyMode && session.score < 10) return;
+     
+     // Deduct cost
+     if (isPartyMode) {
+        const currentTurn = turnQueue[currentTurnIndex];
+        const team = partyConfig.teams.find(t => t.id === currentTurn.teamId);
+        if (!team || team.score < 10) return;
+        setPartyConfig(prev => ({
+           ...prev,
+           teams: prev.teams.map(t => t.id === team.id ? { ...t, score: t.score - 10 } : t)
+        }));
+     } else {
+        setSession(prev => ({ ...prev, score: Math.max(0, prev.score - 10) }));
+     }
+
+     audio.playPowerup();
+
+     // Determine which options to disable
+     const correct = currentRiddle.correctAnswer;
+     const incorrects = currentRiddle.options.filter(o => o !== correct);
+     // Shuffle incorrects
+     for (let i = incorrects.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [incorrects[i], incorrects[j]] = [incorrects[j], incorrects[i]];
+     }
+     // Disable 2 incorrects
+     const toDisable = incorrects.slice(0, 2);
+     setDisabledOptions(toDisable);
   };
 
   const handleNext = (streakOverride?: number) => {
@@ -613,7 +698,7 @@ export default function App() {
   // 2. SETUP MODE (Single/Party)
   if (gameState === GameState.SETUP_MODE) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center p-6 relative overflow-hidden">
+      <div className="min-h-screen flex flex-col items-center justify-center p-6 pt-28 md:p-6 relative overflow-hidden">
         <ParticleBackground mode="normal" />
         <RulesModal isOpen={showRules} onClose={() => setShowRules(false)} />
         
@@ -671,7 +756,8 @@ export default function App() {
     );
   }
 
-  // --- NEW: PARTY SETUP SCREEN ---
+  // ... (PARTY SETUP SCREEN OMITTED FOR BREVITY AS IT IS UNCHANGED BUT INCLUDED IN THE FINAL APP) ...
+  // Re-inserting Party Setup logic here to ensure XML validity for the whole file
   if (gameState === GameState.SETUP_PARTY) {
     const addTeam = () => {
       if (partyConfig.teams.length >= 4) return;
@@ -693,9 +779,7 @@ export default function App() {
     };
 
     const removeTeam = (teamIndex: number) => {
-      // Must maintain at least 2 teams for gameplay logic
       if (partyConfig.teams.length <= 2) return;
-      
       setPartyConfig(prev => ({
         ...prev,
         teams: prev.teams.filter((_, i) => i !== teamIndex)
@@ -705,9 +789,7 @@ export default function App() {
     const updateTeamName = (teamIndex: number, name: string) => {
       setPartyConfig(prev => ({
         ...prev,
-        teams: prev.teams.map((team, i) => 
-          i === teamIndex ? { ...team, name } : team
-        )
+        teams: prev.teams.map((team, i) => i === teamIndex ? { ...team, name } : team)
       }));
     };
 
@@ -715,53 +797,23 @@ export default function App() {
       setPartyConfig(prev => {
         const team = prev.teams[teamIndex];
         if (team.players.length >= 10) return prev;
-        
-        const newPlayer = { 
-             id: `${team.id}-p${team.players.length + 1}`, 
-             name: `Player ${team.players.length + 1}` 
-        };
-
-        return {
-          ...prev,
-          teams: prev.teams.map((t, i) => 
-            i === teamIndex 
-              ? { ...t, players: [...t.players, newPlayer] } 
-              : t
-          )
-        };
+        const newPlayer = { id: `${team.id}-p${team.players.length + 1}`, name: `Player ${team.players.length + 1}` };
+        return { ...prev, teams: prev.teams.map((t, i) => i === teamIndex ? { ...t, players: [...t.players, newPlayer] } : t) };
       });
     };
 
     const updatePlayerName = (teamIndex: number, playerIndex: number, name: string) => {
       setPartyConfig(prev => ({
         ...prev,
-        teams: prev.teams.map((team, tIdx) => 
-          tIdx === teamIndex 
-            ? { 
-                ...team, 
-                players: team.players.map((p, pIdx) => 
-                  pIdx === playerIndex ? { ...p, name } : p
-                ) 
-              } 
-            : team
-        )
+        teams: prev.teams.map((team, tIdx) => tIdx === teamIndex ? { ...team, players: team.players.map((p, pIdx) => pIdx === playerIndex ? { ...p, name } : p) } : team)
       }));
     };
 
     const removePlayer = (teamIndex: number, playerIndex: number) => {
       setPartyConfig(prev => {
          const team = prev.teams[teamIndex];
-         // Keep at least one player
          if (team.players.length <= 1) return prev;
-
-         return {
-           ...prev,
-           teams: prev.teams.map((t, tIdx) => 
-             tIdx === teamIndex 
-               ? { ...t, players: t.players.filter((_, pIdx) => pIdx !== playerIndex) } 
-               : t
-           )
-         };
+         return { ...prev, teams: prev.teams.map((t, tIdx) => tIdx === teamIndex ? { ...t, players: t.players.filter((_, pIdx) => pIdx !== playerIndex) } : t) };
       });
     };
 
@@ -769,122 +821,63 @@ export default function App() {
       <div className="min-h-screen flex flex-col p-6 relative overflow-hidden bg-royal-950">
         <ParticleBackground mode="normal" />
         <RulesModal isOpen={showRules} onClose={() => setShowRules(false)} />
-        
         <div className="absolute top-6 right-6 z-30">
-           <button onClick={() => setShowRules(true)} className="p-3 rounded-full bg-royal-800/50 hover:bg-gold-500/20 text-gold-400 border border-gold-500/20 transition-all" title="Rules">
-             <Info size={20}/>
-           </button>
+           <button onClick={() => setShowRules(true)} className="p-3 rounded-full bg-royal-800/50 hover:bg-gold-500/20 text-gold-400 border border-gold-500/20 transition-all" title="Rules"><Info size={20}/></button>
         </div>
-
         <div className="z-10 w-full max-w-4xl mx-auto space-y-6 animate-fade-in pb-20">
           <header className="text-center mb-8">
              <h2 className="text-3xl font-serif text-gold-300">Congregation Assembly</h2>
              <p className="text-gray-400 text-sm">Gather your tribes</p>
           </header>
-
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* --- CONFIGURATION PANEL --- */}
             <div className="glass-panel p-6 rounded-2xl space-y-6">
                <h3 className="text-gold-400 font-bold uppercase tracking-widest text-xs mb-4 border-b border-white/10 pb-2">Game Settings</h3>
-               
                <div>
                  <label className="block text-gray-400 text-sm mb-2">Flow Style</label>
                  <div className="flex gap-2">
-                    <button 
-                      onClick={() => setPartyConfig({...partyConfig, flow: 'TURN_BASED'})}
-                      className={`flex-1 py-3 px-4 rounded-lg border text-sm font-bold transition-all ${partyConfig.flow === 'TURN_BASED' ? 'bg-gold-500/20 border-gold-500 text-gold-300' : 'border-white/10 text-gray-500 hover:bg-white/5'}`}
-                    >
-                      Turn-Based
-                      <span className="block text-[10px] font-normal opacity-60 mt-1">Alternating Teams</span>
+                    <button onClick={() => setPartyConfig({...partyConfig, flow: 'TURN_BASED'})} className={`flex-1 py-3 px-4 rounded-lg border text-sm font-bold transition-all ${partyConfig.flow === 'TURN_BASED' ? 'bg-gold-500/20 border-gold-500 text-gold-300' : 'border-white/10 text-gray-500 hover:bg-white/5'}`}>
+                      Turn-Based<span className="block text-[10px] font-normal opacity-60 mt-1">Alternating Teams</span>
                     </button>
-                    <button 
-                      onClick={() => setPartyConfig({...partyConfig, flow: 'TEAM_BASED'})}
-                      className={`flex-1 py-3 px-4 rounded-lg border text-sm font-bold transition-all ${partyConfig.flow === 'TEAM_BASED' ? 'bg-gold-500/20 border-gold-500 text-gold-300' : 'border-white/10 text-gray-500 hover:bg-white/5'}`}
-                    >
-                      Team-Based
-                      <span className="block text-[10px] font-normal opacity-60 mt-1">One Team at a time</span>
+                    <button onClick={() => setPartyConfig({...partyConfig, flow: 'TEAM_BASED'})} className={`flex-1 py-3 px-4 rounded-lg border text-sm font-bold transition-all ${partyConfig.flow === 'TEAM_BASED' ? 'bg-gold-500/20 border-gold-500 text-gold-300' : 'border-white/10 text-gray-500 hover:bg-white/5'}`}>
+                      Team-Based<span className="block text-[10px] font-normal opacity-60 mt-1">One Team at a time</span>
                     </button>
                  </div>
                </div>
-
                <div>
                  <label className="block text-gray-400 text-sm mb-2">Series Length (Rounds per Player)</label>
                  <div className="flex gap-2">
                     {[1, 3, 5, 7, 10].map(num => (
-                      <button 
-                        key={num}
-                        onClick={() => setPartyConfig({...partyConfig, seriesLength: num as SeriesLength})}
-                        className={`flex-1 py-2 rounded-lg border text-sm font-bold transition-all ${partyConfig.seriesLength === num ? 'bg-gold-500/20 border-gold-500 text-gold-300' : 'border-white/10 text-gray-500 hover:bg-white/5'}`}
-                      >
-                        {num}
-                      </button>
+                      <button key={num} onClick={() => setPartyConfig({...partyConfig, seriesLength: num as SeriesLength})} className={`flex-1 py-2 rounded-lg border text-sm font-bold transition-all ${partyConfig.seriesLength === num ? 'bg-gold-500/20 border-gold-500 text-gold-300' : 'border-white/10 text-gray-500 hover:bg-white/5'}`}>{num}</button>
                     ))}
                  </div>
                </div>
             </div>
-
-            {/* --- TEAM BUILDER --- */}
             <div className="space-y-4">
                {partyConfig.teams.map((team, tIdx) => (
                  <div key={team.id} className="glass-panel p-4 rounded-xl border-l-4 relative" style={{ borderLeftColor: team.color.replace('text-', 'bg-') }}>
                     <div className="flex items-center gap-2 mb-3">
-                       <input 
-                         value={team.name}
-                         onChange={(e) => updateTeamName(tIdx, e.target.value)}
-                         className="bg-transparent border-b border-white/20 text-gold-200 font-serif font-bold focus:outline-none focus:border-gold-500 w-full placeholder-white/20"
-                         placeholder="Team Name"
-                       />
+                       <input value={team.name} onChange={(e) => updateTeamName(tIdx, e.target.value)} className="bg-transparent border-b border-white/20 text-gold-200 font-serif font-bold focus:outline-none focus:border-gold-500 w-full placeholder-white/20" placeholder="Team Name"/>
                        <span className={`text-xs uppercase font-bold ${team.color} whitespace-nowrap`}>{team.players.length} Players</span>
-                       
-                       {/* Remove Team Button - only shows if > 2 teams */}
-                       {partyConfig.teams.length > 2 && (
-                         <button 
-                           onClick={() => removeTeam(tIdx)} 
-                           className="ml-2 text-red-500/50 hover:text-red-400 p-1 rounded-full hover:bg-red-500/10 transition-colors"
-                           title="Remove Team"
-                         >
-                            <Trash2 size={16} />
-                         </button>
-                       )}
+                       {partyConfig.teams.length > 2 && (<button onClick={() => removeTeam(tIdx)} className="ml-2 text-red-500/50 hover:text-red-400 p-1 rounded-full hover:bg-red-500/10 transition-colors" title="Remove Team"><Trash2 size={16} /></button>)}
                     </div>
-                    
                     <div className="space-y-2 max-h-32 overflow-y-auto pr-2">
                        {team.players.map((player, pIdx) => (
                          <div key={player.id} className="flex items-center gap-2 mb-2">
                             <User size={12} className="text-gray-500"/>
                             <div className="grid">
-                                <span className="col-start-1 row-start-1 text-sm invisible whitespace-pre border-b border-transparent pb-0.5 font-sans min-w-[50px]">
-                                    {player.name || "Player Name"}
-                                </span>
-                                <input 
-                                    value={player.name}
-                                    onChange={(e) => updatePlayerName(tIdx, pIdx, e.target.value)}
-                                    className="col-start-1 row-start-1 w-full bg-transparent border-b border-white/10 text-sm text-gray-300 focus:outline-none focus:border-gold-500/50 focus:text-white placeholder-white/10 pb-0.5 transition-colors font-sans"
-                                    placeholder="Player Name"
-                                />
+                                <span className="col-start-1 row-start-1 text-sm invisible whitespace-pre border-b border-transparent pb-0.5 font-sans min-w-[50px]">{player.name || "Player Name"}</span>
+                                <input value={player.name} onChange={(e) => updatePlayerName(tIdx, pIdx, e.target.value)} className="col-start-1 row-start-1 w-full bg-transparent border-b border-white/10 text-sm text-gray-300 focus:outline-none focus:border-gold-500/50 focus:text-white placeholder-white/10 pb-0.5 transition-colors font-sans" placeholder="Player Name"/>
                             </div>
-                            {team.players.length > 1 && (
-                              <button onClick={() => removePlayer(tIdx, pIdx)} className="text-red-500/50 hover:text-red-400 ml-2">
-                                <Trash2 size={12} />
-                              </button>
-                            )}
+                            {team.players.length > 1 && (<button onClick={() => removePlayer(tIdx, pIdx)} className="text-red-500/50 hover:text-red-400 ml-2"><Trash2 size={12} /></button>)}
                          </div>
                        ))}
                     </div>
-                    <button onClick={() => addPlayer(tIdx)} className="mt-3 text-xs flex items-center gap-1 text-gold-500/60 hover:text-gold-400">
-                       <Plus size={12} /> Add Player
-                    </button>
+                    <button onClick={() => addPlayer(tIdx)} className="mt-3 text-xs flex items-center gap-1 text-gold-500/60 hover:text-gold-400"><Plus size={12} /> Add Player</button>
                  </div>
                ))}
-               
-               {partyConfig.teams.length < 4 && (
-                 <button onClick={addTeam} className="w-full py-4 border-2 border-dashed border-white/10 rounded-xl text-gray-500 hover:border-gold-500/30 hover:text-gold-400 transition-all flex items-center justify-center gap-2">
-                    <Plus size={16} /> Add Another Team
-                 </button>
-               )}
+               {partyConfig.teams.length < 4 && (<button onClick={addTeam} className="w-full py-4 border-2 border-dashed border-white/10 rounded-xl text-gray-500 hover:border-gold-500/30 hover:text-gold-400 transition-all flex items-center justify-center gap-2"><Plus size={16} /> Add Another Team</button>)}
             </div>
           </div>
-
           <div className="fixed bottom-0 left-0 w-full p-4 bg-royal-950/90 backdrop-blur border-t border-white/10 flex justify-between items-center z-40">
              <button onClick={() => setGameState(GameState.SETUP_MODE)} className="text-sm text-gray-500 hover:text-white uppercase tracking-widest font-bold">Back</button>
              <Button onClick={handlePartyStart} className="px-12">Proceed to Difficulty <ChevronRight className="ml-2 inline" size={16} /></Button>
@@ -926,7 +919,7 @@ export default function App() {
   // 3. DIFFICULTY SELECTION
   if (gameState === GameState.SETUP_DIFFICULTY) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center p-6 relative overflow-hidden">
+      <div className="min-h-screen flex flex-col items-center justify-center p-6 pt-28 md:p-6 relative overflow-hidden">
         <ParticleBackground mode="normal" />
 
         {/* Navigation Logo - Home Menu Link */}
@@ -1026,7 +1019,7 @@ export default function App() {
     };
 
     return (
-      <div className="min-h-screen flex flex-col items-center p-6 relative bg-royal-950 overflow-hidden">
+      <div className="min-h-screen flex flex-col items-center p-6 pt-28 md:p-6 relative bg-royal-950 overflow-hidden">
         <ParticleBackground mode="normal" />
 
         {/* Navigation Logo - Home Menu Link */}
@@ -1035,7 +1028,7 @@ export default function App() {
         </div>
         
         <div className="z-10 w-full max-w-4xl space-y-6 animate-fade-in flex flex-col h-full">
-           <header className="text-center mb-6 mt-12 md:mt-0">
+           <header className="text-center mb-6 md:mt-0">
             <h2 className="text-3xl font-serif font-bold text-gold-300 mb-2">Choose Your Subject</h2>
             <p className="text-gold-100/50 text-xs tracking-[0.2em] uppercase">All difficulty levels included</p>
            </header>
@@ -1077,10 +1070,14 @@ export default function App() {
      if (isPartyMode) {
         winner = [...partyConfig.teams].sort((a, b) => b.score - a.score)[0];
      }
+     
+     // Should show confetti?
+     const shouldCelebrate = session.score > 0 || (isPartyMode && winner);
 
      return (
-       <div className="min-h-screen flex flex-col items-center justify-center p-6 relative overflow-hidden">
+       <div className="min-h-screen flex flex-col items-center justify-center p-6 pt-28 md:p-6 relative overflow-hidden">
          <ParticleBackground mode={isKids ? 'kids' : 'normal'} />
+         {shouldCelebrate && <Confetti />}
          
          {/* Navigation Logo - Home Menu Link */}
         <div className="absolute top-6 left-6 z-30 cursor-pointer hover:scale-110 transition-transform duration-300" onClick={handleHome} title="Return Home">
@@ -1145,8 +1142,8 @@ export default function App() {
                 {copyFeedback ? "Copied!" : <><Share2 className="mr-2" size={18} /> Share Scroll</>}
             </Button>
 
-            <Button onClick={() => startNewGame(session.difficulty || GameDifficulty.EASY)} fullWidth className={isKids ? "!bg-cyan-600 !border-cyan-400 hover:!bg-cyan-500" : ""}>
-               Play Again
+            <Button onClick={() => startNewGame(session.difficulty || GameDifficulty.EASY, session.category)} fullWidth className={isKids ? "!bg-cyan-600 !border-cyan-400 hover:!bg-cyan-500" : ""}>
+               <Gamepad2 className="mr-2" size={20} /> New Game+
             </Button>
             <button onClick={handleHome} className={`block w-full text-center mt-6 text-xs font-bold uppercase tracking-widest ${isKids ? 'text-cyan-500 hover:text-cyan-300' : 'text-gold-500/50 hover:text-gold-400'}`}>
                Return Home
@@ -1172,7 +1169,7 @@ export default function App() {
 
   if (gameState === GameState.ERROR) {
     return (
-       <div className="min-h-screen flex flex-col items-center justify-center p-6 text-center relative overflow-hidden">
+       <div className="min-h-screen flex flex-col items-center justify-center p-6 pt-28 md:p-6 text-center relative overflow-hidden">
          <ParticleBackground mode={isKidsMode ? 'kids' : 'normal'} />
          
          {/* Navigation Logo - Home Menu Link */}
@@ -1392,13 +1389,17 @@ export default function App() {
             {/* Options Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3 relative z-10">
                {currentRiddle?.options.map((option, idx) => {
+                 const isDisabled = disabledOptions.includes(option);
                  let stateStyles = isKidsMode 
                     ? "bg-cyan-900/40 border-cyan-500/20 text-cyan-100 hover:bg-cyan-500/20 hover:border-cyan-400/50" 
                     : "bg-royal-800/40 border-gold-500/20 text-gray-200 hover:bg-gold-500/10 hover:border-gold-500/50";
                  
                  let icon = null;
 
-                 if (selectedOption) {
+                 // Logic for rendering options
+                 if (isDisabled) {
+                    stateStyles = "bg-black/20 border-transparent text-gray-700 opacity-20 cursor-not-allowed grayscale";
+                 } else if (selectedOption) {
                     if (option === currentRiddle.correctAnswer) {
                        stateStyles = "bg-green-500/20 border-green-400 text-green-100 shadow-[0_0_20px_rgba(34,197,94,0.2)] scale-[1.02]";
                        icon = <Crown className="w-5 h-5 text-green-400 animate-bounce" />;
@@ -1413,7 +1414,7 @@ export default function App() {
                  return (
                    <button
                      key={idx}
-                     disabled={selectedOption !== null}
+                     disabled={selectedOption !== null || isDisabled}
                      onClick={() => handleOptionSelect(option)}
                      className={`p-4 rounded-xl border text-left transition-all duration-300 flex items-center justify-between group backdrop-blur-sm ${stateStyles}`}
                    >
@@ -1424,28 +1425,51 @@ export default function App() {
                })}
             </div>
 
-            {/* Feedback for Kids */}
-            {selectedOption && !isCorrect && isKidsMode && (
-                <div className="mt-4 p-4 bg-cyan-800/50 border border-cyan-400/30 rounded-xl text-center animate-fade-in">
-                    <p className="text-cyan-200 font-serif text-lg font-bold flex items-center justify-center gap-2">
-                       <Smile className="text-cyan-400" /> Nice try! Keep going!
+            {/* Extended Explanation Feedback */}
+            {selectedOption && (
+                <div className={`mt-4 p-4 border rounded-xl text-center animate-fade-in ${
+                   isCorrect 
+                    ? (isKidsMode ? 'bg-green-500/20 border-green-400/30' : 'bg-green-900/40 border-green-500/30') 
+                    : (isKidsMode ? 'bg-cyan-800/50 border-cyan-400/30' : 'bg-red-900/40 border-red-500/30')
+                }`}>
+                    <p className={`font-serif text-lg font-bold flex items-center justify-center gap-2 mb-2 ${isKidsMode ? 'text-cyan-100' : 'text-gold-200'}`}>
+                       {isCorrect ? (isKidsMode ? "Splendid!" : "Wisdom is yours.") : (isKidsMode ? "Nice try! Keep going!" : "Not quite, pilgrim.")}
                     </p>
+                    <div className={`text-sm opacity-80 ${isKidsMode ? 'text-cyan-200' : 'text-gray-300'}`}>
+                        <p className="font-bold uppercase text-xs tracking-widest mb-1 opacity-50">Reference</p>
+                        <p className="font-serif italic">{currentRiddle?.reference}</p>
+                    </div>
                 </div>
             )}
 
             {/* Bottom Controls */}
             <div className="mt-6 flex justify-between items-center border-t border-white/5 pt-6">
-               <button
-                  onClick={handleHint}
-                  disabled={selectedOption !== null || hintLevel >= 2 || (!isPartyMode && session.score < 5)}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all text-xs font-bold uppercase tracking-widest ${
-                      isKidsMode 
-                      ? 'text-cyan-400 hover:text-cyan-200 hover:bg-cyan-500/10 disabled:opacity-30'
-                      : 'text-gold-400 hover:text-gold-200 hover:bg-gold-500/10 disabled:opacity-30'
-                  }`}
-               >
-                  {hintLevel >= 2 ? 'Max Hints Used' : 'Reveal Hint (-5 pts)'}
-               </button>
+               <div className="flex gap-2">
+                 <button
+                    onClick={handleHint}
+                    disabled={selectedOption !== null || hintLevel >= 2 || (!isPartyMode && session.score < 5)}
+                    className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-all text-[10px] md:text-xs font-bold uppercase tracking-widest border border-transparent ${
+                        isKidsMode 
+                        ? 'text-cyan-400 hover:text-cyan-200 hover:bg-cyan-500/10 disabled:opacity-30'
+                        : 'text-gold-400 hover:text-gold-200 hover:bg-gold-500/10 disabled:opacity-30'
+                    }`}
+                 >
+                    <Lightbulb size={14} /> {hintLevel >= 2 ? 'Max' : 'Hint (-5)'}
+                 </button>
+
+                 <button
+                    onClick={handleFiftyFifty}
+                    disabled={selectedOption !== null || disabledOptions.length > 0 || (!isPartyMode && session.score < 10)}
+                    className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-all text-[10px] md:text-xs font-bold uppercase tracking-widest border border-transparent ${
+                        isKidsMode 
+                        ? 'text-cyan-400 hover:text-cyan-200 hover:bg-cyan-500/10 disabled:opacity-30'
+                        : 'text-purple-400 hover:text-purple-200 hover:bg-purple-500/10 disabled:opacity-30'
+                    }`}
+                    title="Remove 2 wrong answers (Cost: 10 pts)"
+                 >
+                    <Percent size={14} /> 50/50 (-10)
+                 </button>
+               </div>
 
                <button
                   onClick={handleSkip}

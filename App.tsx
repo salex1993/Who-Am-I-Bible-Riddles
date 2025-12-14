@@ -678,48 +678,91 @@ export default function App() {
       const id = Date.now().toString();
       const colors = ['text-blue-400', 'text-red-400', 'text-green-400', 'text-purple-400'];
       const color = colors[partyConfig.teams.length % colors.length];
-      setPartyConfig({
-        ...partyConfig,
-        teams: [...partyConfig.teams, { id, name: `Team ${partyConfig.teams.length + 1}`, players: [{id: `${id}-p1`, name: 'Player 1'}], score: 0, color }]
-      });
+      const newTeam: Team = { 
+          id, 
+          name: `Team ${partyConfig.teams.length + 1}`, 
+          players: [{id: `${id}-p1`, name: 'Player 1'}], 
+          score: 0, 
+          color 
+      };
+      
+      setPartyConfig(prev => ({
+        ...prev,
+        teams: [...prev.teams, newTeam]
+      }));
     };
 
     const removeTeam = (teamIndex: number) => {
       // Must maintain at least 2 teams for gameplay logic
       if (partyConfig.teams.length <= 2) return;
       
-      const newTeams = [...partyConfig.teams];
-      newTeams.splice(teamIndex, 1);
-      setPartyConfig({...partyConfig, teams: newTeams});
+      setPartyConfig(prev => ({
+        ...prev,
+        teams: prev.teams.filter((_, i) => i !== teamIndex)
+      }));
     };
 
     const updateTeamName = (teamIndex: number, name: string) => {
-      const newTeams = [...partyConfig.teams];
-      newTeams[teamIndex].name = name;
-      setPartyConfig({...partyConfig, teams: newTeams});
+      setPartyConfig(prev => ({
+        ...prev,
+        teams: prev.teams.map((team, i) => 
+          i === teamIndex ? { ...team, name } : team
+        )
+      }));
     };
 
     const addPlayer = (teamIndex: number) => {
-      const team = partyConfig.teams[teamIndex];
-      if (team.players.length >= 10) return;
-      const newPlayer = { id: `${team.id}-p${team.players.length + 1}`, name: `Player ${team.players.length + 1}` };
-      const newTeams = [...partyConfig.teams];
-      newTeams[teamIndex].players = [...team.players, newPlayer];
-      setPartyConfig({...partyConfig, teams: newTeams});
+      setPartyConfig(prev => {
+        const team = prev.teams[teamIndex];
+        if (team.players.length >= 10) return prev;
+        
+        const newPlayer = { 
+             id: `${team.id}-p${team.players.length + 1}`, 
+             name: `Player ${team.players.length + 1}` 
+        };
+
+        return {
+          ...prev,
+          teams: prev.teams.map((t, i) => 
+            i === teamIndex 
+              ? { ...t, players: [...t.players, newPlayer] } 
+              : t
+          )
+        };
+      });
     };
 
     const updatePlayerName = (teamIndex: number, playerIndex: number, name: string) => {
-      const newTeams = [...partyConfig.teams];
-      newTeams[teamIndex].players[playerIndex].name = name;
-      setPartyConfig({...partyConfig, teams: newTeams});
+      setPartyConfig(prev => ({
+        ...prev,
+        teams: prev.teams.map((team, tIdx) => 
+          tIdx === teamIndex 
+            ? { 
+                ...team, 
+                players: team.players.map((p, pIdx) => 
+                  pIdx === playerIndex ? { ...p, name } : p
+                ) 
+              } 
+            : team
+        )
+      }));
     };
 
     const removePlayer = (teamIndex: number, playerIndex: number) => {
-      const newTeams = [...partyConfig.teams];
-      // Keep at least one player
-      if (newTeams[teamIndex].players.length <= 1) return;
-      newTeams[teamIndex].players.splice(playerIndex, 1);
-      setPartyConfig({...partyConfig, teams: newTeams});
+      setPartyConfig(prev => {
+         const team = prev.teams[teamIndex];
+         // Keep at least one player
+         if (team.players.length <= 1) return prev;
+
+         return {
+           ...prev,
+           teams: prev.teams.map((t, tIdx) => 
+             tIdx === teamIndex 
+               ? { ...t, players: t.players.filter((_, pIdx) => pIdx !== playerIndex) } 
+               : t
+           )
+         };
+      });
     };
 
     return (
@@ -767,7 +810,7 @@ export default function App() {
                <div>
                  <label className="block text-gray-400 text-sm mb-2">Series Length (Rounds per Player)</label>
                  <div className="flex gap-2">
-                    {[1, 3, 5, 7].map(num => (
+                    {[1, 3, 5, 7, 10].map(num => (
                       <button 
                         key={num}
                         onClick={() => setPartyConfig({...partyConfig, seriesLength: num as SeriesLength})}
@@ -788,7 +831,7 @@ export default function App() {
                        <input 
                          value={team.name}
                          onChange={(e) => updateTeamName(tIdx, e.target.value)}
-                         className="bg-transparent border-b border-white/20 text-gold-200 font-serif font-bold focus:outline-none focus:border-gold-500 w-full"
+                         className="bg-transparent border-b border-white/20 text-gold-200 font-serif font-bold focus:outline-none focus:border-gold-500 w-full placeholder-white/20"
                          placeholder="Team Name"
                        />
                        <span className={`text-xs uppercase font-bold ${team.color} whitespace-nowrap`}>{team.players.length} Players</span>
@@ -807,15 +850,21 @@ export default function App() {
                     
                     <div className="space-y-2 max-h-32 overflow-y-auto pr-2">
                        {team.players.map((player, pIdx) => (
-                         <div key={player.id} className="flex items-center gap-2">
+                         <div key={player.id} className="flex items-center gap-2 mb-2">
                             <User size={12} className="text-gray-500"/>
-                            <input 
-                              value={player.name}
-                              onChange={(e) => updatePlayerName(tIdx, pIdx, e.target.value)}
-                              className="bg-transparent text-sm text-gray-300 w-full focus:outline-none focus:text-white"
-                            />
+                            <div className="grid">
+                                <span className="col-start-1 row-start-1 text-sm invisible whitespace-pre border-b border-transparent pb-0.5 font-sans min-w-[50px]">
+                                    {player.name || "Player Name"}
+                                </span>
+                                <input 
+                                    value={player.name}
+                                    onChange={(e) => updatePlayerName(tIdx, pIdx, e.target.value)}
+                                    className="col-start-1 row-start-1 w-full bg-transparent border-b border-white/10 text-sm text-gray-300 focus:outline-none focus:border-gold-500/50 focus:text-white placeholder-white/10 pb-0.5 transition-colors font-sans"
+                                    placeholder="Player Name"
+                                />
+                            </div>
                             {team.players.length > 1 && (
-                              <button onClick={() => removePlayer(tIdx, pIdx)} className="text-red-500/50 hover:text-red-400">
+                              <button onClick={() => removePlayer(tIdx, pIdx)} className="text-red-500/50 hover:text-red-400 ml-2">
                                 <Trash2 size={12} />
                               </button>
                             )}

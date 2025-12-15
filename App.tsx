@@ -1467,7 +1467,6 @@ export default function App() {
                   <div className={`text-[10px] uppercase tracking-widest font-bold opacity-60 ${isKidsMode ? 'text-cyan-200' : 'text-gold-200'}`}>{currentRiddle?.category}</div>
                </div>
                <div className="relative mt-2">
-                 <Quote className={`absolute -top-4 -left-2 w-8 h-8 opacity-20 transform -scale-x-100 ${isKidsMode ? 'text-cyan-400' : 'text-gold-400'}`} />
                  <div className={`font-riddle text-2xl md:text-3xl leading-relaxed text-center italic ${isKidsMode ? 'text-cyan-100 drop-shadow-[0_2px_4px_rgba(8,145,178,0.5)]' : 'text-transparent bg-clip-text bg-gradient-to-br from-gold-100 via-gold-300 to-gold-600 drop-shadow-[0_2px_2px_rgba(0,0,0,0.8)]'}`}>{currentRiddle?.question.split('\n').map((line, i) => (<p key={i} className={`pb-3 ${line.trim() === '' ? 'h-4' : ''}`}>{line}</p>))}</div>
                </div>
                <div className="min-h-[20px] mt-6 space-y-2">
